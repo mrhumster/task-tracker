@@ -11,7 +11,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/list"
 	"github.com/google/uuid"
+)
+
+const (
+	Todo       = "todo"
+	InProgress = "in-progress"
+	Done       = "done"
 )
 
 type Task struct {
@@ -22,8 +30,40 @@ type Task struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
+func showError(text string) {
+	warningStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#fff")).
+		Background(lipgloss.Color("#2e2e2e")).
+		Width(50).
+		Align(lipgloss.Center).
+		Margin(1).
+		PaddingBottom(1).
+		PaddingTop(1)
+	fmt.Println(warningStyle.Render(text))
+}
+
 func generateID() string {
 	return uuid.New().String()
+}
+
+func (t *Task) pprint() string {
+	todoStyle := lipgloss.NewStyle().Bold(true).Italic(true).Foreground(lipgloss.Color("#005aba"))
+	progStyle := lipgloss.NewStyle().Bold(true).Italic(false).Foreground(lipgloss.Color("##005aba"))
+	doneStyle := lipgloss.NewStyle().
+		Bold(true).
+		Italic(false).
+		Foreground(lipgloss.Color("#3f478f")).
+		Strikethrough(true)
+	var style lipgloss.Style
+	switch t.Status {
+	case Todo:
+		style = todoStyle
+	case InProgress:
+		style = progStyle
+	case Done:
+		style = doneStyle
+	}
+	return fmt.Sprintf("%d. %s", t.ID, style.Render(t.Description))
 }
 
 func NewTask(id int, description string) *Task {
@@ -83,40 +123,54 @@ func (tl *TaskList) add(description string) (int, error) {
 }
 
 func help() {
-	text := `# Adding a new task
-task-cli add "Buy groceries"
-# Output: Task added successfully (ID: 1)
+	style := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Background(lipgloss.Color("#202020")).
+		Margin(2, 0).
+		Padding(2).
+		Italic(true).
+		Width(50).
+		Align(lipgloss.Center)
 
-# Updating and deleting tasks
-task-cli update 1 "Buy groceries and cook dinner"
-task-cli delete 1
+	text := ` 📙 HELP PAGE
+👉🏻 Adding a new task
+$ task-cli add "Buy groceries"
 
-# Marking a task as in progress or done
-task-cli mark-in-progress 1
-task-cli mark-done 1
+👉🏻 Output: Task added successfully (ID: 1)
 
-# Listing all tasks
-task-cli list
+👉🏻 Updating and deleting tasks
+$ task-cli update 1 "Buy groceries and cook dinner"
+$task-cli delete 1
 
-# Listing tasks by status
-task-cli list done
-task-cli list todo
-task-cli list in-progress
+👉🏻 Marking a task as in progress or done
+$ task-cli mark-in-progress 1
+$ task-cli mark-done 1
+
+👉🏻 Listing all tasks
+$ task-cli list
+
+👉🏻 Listing tasks by status
+$ task-cli list done
+$ task-cli list todo
+$ task-cli list in-progress
 `
-	fmt.Println(text)
+	fmt.Println(style.Render(text))
 }
 
 func (tl *TaskList) list(filter string) {
-	fmt.Println(" 📃 TASKS LIST")
-	for i, v := range *tl {
-		if filter == "" {
-			fmt.Printf(" %d.\t%s\t%s\n", i+1, v.Description, v.Status)
-		} else {
-			if v.Status == filter {
-				fmt.Printf(" %d.\t%s\t%s\n", i+1, v.Description, v.Status)
-			}
+	prettyList := list.New().Enumerator(list.Bullet)
+
+	for _, v := range *tl {
+		switch {
+		case filter == Todo && v.Status == Todo,
+			filter == InProgress && v.Status == InProgress,
+			filter == Done && v.Status == Done:
+			prettyList.Item(v.pprint())
+		case filter == "":
+			prettyList.Item(v.pprint())
 		}
 	}
+	fmt.Println(prettyList)
 }
 
 func (tl *TaskList) deleteByIdx(idx int) {
@@ -134,13 +188,13 @@ func (tl *TaskList) deleteByIdx(idx int) {
 }
 
 func notEnoughArgumentException() {
-	fmt.Println("⚠️ Not enough arguments!!!")
+	showError("⚠️ Not enough arguments!!!")
 	help()
 	os.Exit(1)
 }
 
 func wrongIDException() {
-	fmt.Println("⚠️ Wrong ID")
+	showError("⚠️ Wrong ID")
 	os.Exit(1)
 }
 
@@ -163,7 +217,7 @@ func main() {
 	case "add":
 		description := strings.Join(os.Args[2:], " ")
 		if description == "" {
-			fmt.Println("⚠️ Task description can't be empty")
+			showError("⚠️ Task description can't be empty")
 			help()
 			os.Exit(1)
 		}
