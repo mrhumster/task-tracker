@@ -1,2 +1,4 @@
 .tasks
 main
+*.json
+task-cli
